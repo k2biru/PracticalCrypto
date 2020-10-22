@@ -1,3 +1,17 @@
+# Fork
+
+* This library fork from [PracticalCrypto](https://github.com/gutierrezps/PracticalCrypto)
+* The goal from this fork :
+   - To encrypt/ decryipt using less memory by reducing String
+   - Using existing buffer to encrypt/decrypt something
+   - Encrypt/decrypt other than text
+
+* Changes :
+   - Encrypt using char array instead String
+   - Decrypt using char array instead String
+   - more info please read [CHANGELOG](CHANGELOG.md)
+* GNU LGPL 2.1.
+
 # PracticalCrypto
 
 A simple library to encrypt and decrypt strings with hashing, for ESP8266, based
