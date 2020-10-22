@@ -1,9 +1,10 @@
 /**
  * @file PracticalCrypto.cpp
  * @author Gutierrez PS (https://github.com/gutierrezps)
+ *         Fahhrizal HU (https://github.com/k2biru)
  * @brief Library for easy encryption and decryption of Strings in ESP8266 Arduino core.
- * @version 0.1.0
- * @date 2020-05-25
+ * @version 0.1.1
+ * @date 2020-10-20
  * 
  */
 #include <Arduino.h>
@@ -33,7 +34,6 @@ bool PracticalCrypto::setKey(String key)
 }
 
 
-
 String PracticalCrypto::generateKey()
 {
     String key = "";
@@ -43,7 +43,21 @@ String PracticalCrypto::generateKey()
     return key;
 }
 
+/**
+ * Calculate size of buffer to be use for any given plaint Size
+ * 
+ * buffer size is calculate from following parts, where 'n' is its plainSize:
+ * - [0..31]  is the encrypted initialization vector
+ * - [32..(n-41)] is the encrypted plaintext
+ * - [(n-40)..(n-1)] is the SHA1 hash
+ * 
+ * @param plainSize     size of plainText
+ * @return              cipher size
+ */
 
+size_t PracticalCrypto::calculateBuffer(const size_t plainSize){
+    return (BLK_SZ+br_sha1_SIZE+(plainSize/ BLK_SZ + 1)*BLK_SZ)*2;
+}
 
 /**
  * Encrypts the provided plaintext String. The following steps are done:
@@ -59,37 +73,59 @@ String PracticalCrypto::generateKey()
  * 6. The output String (ciphertext) is formed by concatenating hex strings of
  *      encrypted IV, encrypted data and hash.
  * 
- * @param plaintext     String to be encrypted
+ * @param plainText     String to be encrypted
  * @return String       ciphertext
  */
-String PracticalCrypto::encrypt(String plaintext)
+const String PracticalCrypto::encrypt(String &plainText)
 {
+    return encrypt(plainText.c_str(), plainText.length());
+}
+
+const String PracticalCrypto::encrypt(const char*plainText, const size_t plainSize){
+    size_t cipherSize = calculateBuffer(plainSize);
+    char *buffer =  reinterpret_cast<char*>(malloc(cipherSize+1));
+    memcpy(buffer, plainText, plainSize);
+    size_t size = encryptArray(buffer,plainSize,buffer);
+    String ret;
+    ret.reserve(size);
+    if (size !=0){
+        ret = buffer;
+    }
+    free(buffer);
+    return ret;
+}
+
+const size_t PracticalCrypto::encryptArray(const char *plainText,size_t plainSize,char* cipher)
+{
+    size_t size = 0;
     if (key_.length() == 0) {
         lastStatus_ = InvalidKey;
-        return "";
+        return size;
     }
 
-    if (plaintext.length() > kMaxDataLength_) {
+    if (plainSize > kMaxDataLength_) {
         lastStatus_ = PlaintextTooLong;
-        return "";
+        return size;
     }
 
-    if (!dataBuffer_) {
+    if (!dataBuffer_ || !cipher) {
         lastStatus_ = BufferAllocationFailed;
-        return "";
+        return size;
     }
+    // Serial.printf("here1 plainSize %i %s\n",plainSize,plainText);
 
     uint16_t i = 0;
 
     // dataBuffer_ will turn into the encrypted plaintext later
-    memcpy(dataBuffer_, plaintext.c_str(), plaintext.length());
+    memcpy(dataBuffer_, plainText, plainSize);
 
+    
     // number of blocks required for data is rounded up if division has decimals,
     // otherwise a full padding block is added if the division is even
-    uint8_t dataBlocksQty = plaintext.length() / BLK_SZ + 1;
+    uint8_t dataBlocksQty = plainSize / BLK_SZ + 1;
 
     // add padding to dataBuffer_
-    uint8_t dataPadding = dataBlocksQty * BLK_SZ - plaintext.length();
+    uint8_t dataPadding = dataBlocksQty * BLK_SZ - plainSize;
     const uint16_t paddingStart = dataBlocksQty * BLK_SZ - dataPadding;
     for (i = paddingStart; i < dataBlocksQty * BLK_SZ; ++i) {
         dataBuffer_[i] = dataPadding;
@@ -134,15 +170,19 @@ String PracticalCrypto::encrypt(String plaintext)
     br_hmac_key_context hashKc;
     br_hmac_context hashCtx;
 
+
     // initialize key context with the SHA1 algorithm, the given key and its length
     br_hmac_key_init(&hashKc, &br_sha1_vtable, hashKey_, BLK_SZ);
+
 
     // initialize hashing context, setting the output size
     br_hmac_init(&hashCtx, &hashKc, br_sha1_SIZE);
 
+
     // hash encrypted IV and encrypted data
     br_hmac_update(&hashCtx, ivCipher, BLK_SZ);
     br_hmac_update(&hashCtx, dataBuffer_, dataBlocksQty * BLK_SZ);
+
 
     yield();
 
@@ -150,16 +190,15 @@ String PracticalCrypto::encrypt(String plaintext)
     uint8_t hash[br_sha1_SIZE] = {0};
     br_hmac_out(&hashCtx, hash);
 
-    // convert to hex string and concatenate
-    String ciphertext = arrayToHexString(ivCipher, BLK_SZ);
-    ciphertext += arrayToHexString(dataBuffer_, dataBlocksQty * BLK_SZ);
-    ciphertext += arrayToHexString(hash, br_sha1_SIZE);
+
+    size = (arrayToHexCharArray(ivCipher,BLK_SZ,cipher,size));
+    size = (arrayToHexCharArray(dataBuffer_,dataBlocksQty * BLK_SZ,cipher,size));
+    size = (arrayToHexCharArray(hash, br_sha1_SIZE,cipher,size));
 
     lastStatus_ = Ok;
 
-    return ciphertext;
+    return size;
 }
-
 
 
 /**
@@ -175,66 +214,109 @@ String PracticalCrypto::encrypt(String plaintext)
  * @param ciphertext    String to be decrypted
  * @return String       plaintext data
  */
-String PracticalCrypto::decrypt(String ciphertext)
+const String PracticalCrypto::decrypt(String cipherText)
 {
+    return decrypt(cipherText.c_str(),cipherText.length());
+}
+
+/**
+ * Decrypts the provided ciphertext array. The following steps are done:
+ * 
+ * 1. Ciphertext is validated and converted to byte arrays.
+ * 2. Hash of encrypted IV + encrypted data is calculated using hashKey_
+ *      and compared with hash extracted from ciphertext
+ * 3. IV is decrypted using ivKey_ and staticIv_
+ * 4. Data is decrypted using IV and dataKey_
+ * 5. Output string (plaintext) is generated from data, excluding padding bytes
+ * 
+ * @param ciphertext    encrypted const char*
+ * @param size          size of ciphertext
+ * @return String       plaintext, empty string if failed
+ */
+const String PracticalCrypto::decrypt(const char* cipherText, size_t size)
+{   
+    String out;
+    out.reserve(size);
+    char buffer[size];
+    memcpy(buffer,cipherText,size);
+    if(!decryptArray(buffer,size)){
+        return out;
+    }
+    out = String(buffer);
+    return out;
+}
+
+/**
+ * Decrypts the provided data array ciphertext. The following steps are done:
+ * 
+ * 1. Ciphertext is validated and converted to byte arrays.
+ * 2. Hash of encrypted IV + encrypted data is calculated using hashKey_
+ *      and compared with hash extracted from ciphertext
+ * 3. IV is decrypted using ivKey_ and staticIv_
+ * 4. Data is decrypted using IV and dataKey_
+ * 5. Output plaintext save to data if decrypts successfully, excluding padding bytes
+ * 
+ * @param data          buffer (array) of data ciphertext and if decrypt plaintext successfully 
+ * @param cipherSize    size of cipher
+ * @return size_t       return size of plaintext in data array, return 0 if failed
+ */
+const size_t PracticalCrypto::decryptArray(char* data, size_t cipherSize)
+{   
+    size_t decSize = 0;
     if (key_.length() == 0) {
         lastStatus_ = InvalidKey;
-        return "";
+        return decSize;
     }
 
     if (!dataBuffer_) {
         lastStatus_ = BufferAllocationFailed;
-        return "";
+        return decSize;
     }
 
     // minimum ciphertext hex string length:
     // iv + min plaintext length (padded) + sha1 output length
     const uint16_t minCiphertextLength = (16 + 16 + 20)*2;
 
-    if (ciphertext.length() < minCiphertextLength || ciphertext.length() % 2 != 0) {
+    if (cipherSize < minCiphertextLength || cipherSize % 2 != 0) {
         lastStatus_ = InvalidCiphertextLength;
-        return "";
+        return decSize;
     }
 
     // maximum ciphertext hex string length:
     // iv + max plaintext length (padded) + sha1 output length
     const uint16_t maxCiphertextLength = (16 + (kMaxDataLength_ + 16) + 20)*2;
 
-    if (ciphertext.length() > maxCiphertextLength) {
+    if (cipherSize > maxCiphertextLength) {
         lastStatus_ = CiphertextTooLong;
-        return "";
+        return decSize;
     }
 
     const uint16_t ivEnd = BLK_SZ*2;
-    const uint16_t hashStart = ciphertext.length() - br_sha1_SIZE*2;
+    const uint16_t hashStart = cipherSize - br_sha1_SIZE*2;
 
-    // second param of substring is end index, and it's exclusive
-    String ivHex = ciphertext.substring(0, ivEnd);
-    String dataHex = ciphertext.substring(ivEnd, hashStart);
-    String hashHex = ciphertext.substring(hashStart);
 
     uint16_t converted = 0;
-    const uint16_t dataLength = dataHex.length() / 2;
+    const uint16_t dataLength = (hashStart-ivEnd) / 2;
 
     uint8_t ivCipher[BLK_SZ] = {0};
     uint8_t hashCipher[br_sha1_SIZE] = {0};
 
-    converted = hexStringToArray(ivHex, ivCipher, BLK_SZ);
+    converted = hexStringToArray((char*)data,0,ivEnd, ivCipher, BLK_SZ);
     if (converted == 0) {
         // last status already set
-        return "";
+        return decSize;
     }
 
-    converted = hexStringToArray(dataHex, dataBuffer_, dataLength);
+    converted = hexStringToArray((char*)data,ivEnd, hashStart, dataBuffer_, dataLength);
     if (converted == 0) {
         // last status already set
-        return "";
+        return decSize;
     }
 
-    converted = hexStringToArray(hashHex, hashCipher, br_sha1_SIZE);
+    converted = hexStringToArray((char*)data,hashStart,cipherSize,hashCipher,br_sha1_SIZE);
     if (converted == 0) {
         // last status already set
-        return "";
+        return decSize;
     }
 
     yield();
@@ -263,7 +345,7 @@ String PracticalCrypto::decrypt(String ciphertext)
 
     if (memcmp(hashExpected, hashCipher, br_sha1_SIZE) != 0) {
         lastStatus_ = HashMismatch;
-        return "";
+        return decSize;
     }
 
     // decryption context
@@ -286,14 +368,22 @@ String PracticalCrypto::decrypt(String ciphertext)
     
     // get number of padding bytes used
     const uint8_t dataPadding = dataBuffer_[dataLength - 1];
+    
+    decSize = dataLength - dataPadding;
 
     // insert a null char to terminate the string
-    dataBuffer_[dataLength - dataPadding] = 0;
+    dataBuffer_[decSize] = 0;
 
     lastStatus_ = Ok;
 
-    return String((char*) dataBuffer_);
+    // copy paintext to data
+    memcpy(data, dataBuffer_,decSize);
+    // add null char to terminate the string
+    data[decSize] = 0;
+    
+    return decSize;
 }
+
 
 
 
@@ -313,18 +403,19 @@ inline int8_t hexToByte(char hex)
 }
 
 
-
 uint16_t PracticalCrypto::hexStringToArray(
-    String input,
+    char * input,
+    uint16_t inputStart,
+    const uint16_t inputStop,
     uint8_t *output,
-    uint16_t capacity)
+    const uint16_t capacity)
 {
     uint8_t val = 0;
     uint16_t i = 0;
     char ch = 0;
-    uint16_t bytesQty = input.length() / 2;
+    uint16_t bytesQty = (inputStop-inputStart) / 2;
 
-    if (input.length() % 2 != 0) {
+    if (((inputStop-inputStart) % 2) != 0) {
         lastStatus_ = InvalidHexString;
         return 0;
     }
@@ -333,37 +424,33 @@ uint16_t PracticalCrypto::hexStringToArray(
         lastStatus_ = HexStringTooLong;
         return 0;
     }
-
+    if(inputStart!=0){
+        inputStart = inputStart/2;
+    }
     for (i = 0; i < bytesQty; ++i) {
         val = 0;
-        ch = input.charAt(i * 2);
-
+        ch = input[inputStart*2];
         if (hexToByte(ch) < 0) {
             lastStatus_ = InvalidHexString;
             return 0;
         }
         val += hexToByte(ch);
-
         val *= 16;
-
-        ch = input.charAt(i * 2 + 1);
+        ch = input[(inputStart * 2) + 1];
         if (hexToByte(ch) < 0) {
             lastStatus_ = InvalidHexString;
             return 0;
         }
         val += hexToByte(ch);
-
         output[i] = val;
+        inputStart ++;
     }
-
     lastStatus_ = Ok;
-
     return i;
 }
 
 
-
-String PracticalCrypto::arrayToHexString(uint8_t *input, uint16_t len)
+const String PracticalCrypto::arrayToHexString(uint8_t *input, uint16_t len)
 {
     String ret = "";
 
@@ -378,8 +465,56 @@ String PracticalCrypto::arrayToHexString(uint8_t *input, uint16_t len)
         else ch += 'A' - 10;
         ret += ch;
     }
+    
 
     return ret;
+}
+
+/////
+
+const size_t PracticalCrypto::arrayToHexCharArray(uint8_t *input, size_t len, char *output)
+{
+    size_t size = 0;
+    for (uint16_t i = 0; i < len; ++i) {
+        size = i*2;
+        char ch = (input[i] >> 4) & 0x0F;
+        if (ch < 10) ch += '0';
+        else ch += 'A' - 10;
+        output[size] = ch;
+
+        size++;
+
+        ch = input[i] & 0x0F;
+        if (ch < 10) ch += '0';
+        else ch += 'A' - 10;
+        output[size] = ch;
+    }
+    return size;
+}
+
+const size_t PracticalCrypto::arrayToHexCharArray(uint8_t *input, size_t inputLen, char *output, size_t outputStart)
+{
+    size_t size = 0;
+    size_t sizeOffset = outputStart;
+    for (uint16_t i = 0; i < inputLen; ++i) {
+        size = (i*2)+sizeOffset;
+        char ch = (input[i] >> 4) & 0x0F;
+        if (ch < 10) ch += '0';
+        else ch += 'A' - 10;
+        output[size] = ch;
+
+        size++;
+
+        ch = input[i] & 0x0F;
+        if (ch < 10) ch += '0';
+        else ch += 'A' - 10;
+        output[size] = ch;
+
+        // Serial.printf("%i in %2x -> %c%c\n",i,input[i],output[size-1],output[size]);
+    }
+    size++;
+    output[size] = 0;
+    return size;
 }
 
 #undef BLK_SZ

@@ -1,9 +1,10 @@
 /**
- * @file PracticalCrypto.h
+ * @file PracticalCrypto.cpp
  * @author Gutierrez PS (https://github.com/gutierrezps)
+ *         Fahhrizal HU (https://github.com/k2biru)
  * @brief Library for easy encryption and decryption of Strings in ESP8266 Arduino core.
- * @version 0.1.0
- * @date 2020-05-25
+ * @version 0.1.1
+ * @date 2020-10-20
  * 
  * Library for easy encryption and decryption of Strings in ESP8266 Arduino core.
  * 
@@ -96,10 +97,67 @@ public:
      * - [32..(n-41)] is the encrypted plaintext
      * - [(n-40)..(n-1)] is the SHA1 hash
      * 
-     * @param plaintext     String to be encrypted, must be shorter than maxLength
+     * @param plainText     String to be encrypted, must be shorter than maxLength
      * @return              ciphertext, empty string if failed
      */
-    String encrypt(String plaintext);
+    const String encrypt(String &plainText);
+
+    /**
+     * @brief Encrypt the provided plaintext String using the key set, 
+     * and returns the ciphertext encoded as an hex string.
+     * 
+     * The key must be sucessfully set before trying to encrypt.
+     * 
+     * An empty string is returned in case of error. Possible statuses
+     * are BufferAllocationFailed, InvalidKey, PlaintextTooLong
+     * or Ok if encrypted correctly.
+     * 
+     * Ciphertext is composed of the following parts, where 'n' is its length:
+     * - [0..31]  is the encrypted initialization vector
+     * - [32..(n-41)] is the encrypted plaintext
+     * - [(n-40)..(n-1)] is the SHA1 hash
+     * 
+     * @param plainText     Array to be encrypted, must be shorter than maxLength
+     * @param plainSize     size of plainText
+     * @return              ciphertext, empty string if failed
+     */
+    const String encrypt(const char*plainText, const size_t plainSize);
+
+    /**
+     * @brief Encrypt the provided plainText Array using the key set, 
+     * and returns cipher Size encoded as an hex string.
+     * 
+     * The key must be sucessfully set before trying to encrypt.
+     * 
+     * return 0 if there any error. Possible statuses
+     * are BufferAllocationFailed, InvalidKey, PlaintextTooLong
+     * or Ok if encrypted correctly.
+     * 
+     * Ciphertext is composed of the following parts, where 'n' is its length:
+     * - [0..31]  is the encrypted initialization vector
+     * - [32..(n-41)] is the encrypted plaintext
+     * - [(n-40)..(n-1)] is the SHA1 hash
+     * 
+     * @param plainText     Array to be encrypted, must be shorter 
+     *                      than maxLength
+     * @param plainSize     size of plainText
+     * @param cipher        char * to be save as cipher
+     * @return              cipher size, 0 if failed
+     */
+    const size_t encryptArray(const char *plainText,size_t plainSize,char* cipher);
+
+    /**
+     * @brief Calculate size of buffer to be use for any given plaint Size
+     * 
+     * buffer size is calculate from following parts, where 'n' is its plainSize:
+     * - [0..31]  is the encrypted initialization vector
+     * - [32..(n-41)] is the encrypted plaintext
+     * - [(n-40)..(n-1)] is the SHA1 hash
+     * 
+     * @param plainSize     size of plainText
+     * @return              cipher size
+     */
+    size_t calculateBuffer(const size_t plainSize);
 
     /**
      * Decrypt the provided ciphertext String using the key set,
@@ -125,7 +183,61 @@ public:
      * @param ciphertext    encrypted String
      * @return String       plaintext, empty string if failed
      */
-    String decrypt(String ciphertext);
+    const String decrypt(String cipherText);
+
+     /**
+     * @brief Decrypt the provided ciphertext array using the key set,
+     * and returns the plaintext String.
+     * 
+     * The key must be sucessfully set before trying to decrypt.
+     * 
+     * An empty string is returned in case of error. Possible statuses
+     * are BufferAllocationFailed, InvalidKey, InvalidCiphertextLength,
+     * InvalidHexString, HashMismatch, CiphertextTooLong, or Ok
+     * if decrypted correctly.
+     * 
+     * Ciphertext is interpreted as an hex string composed of the following
+     * parts, where 'n' is its length:
+     * - [0..31]  is the encrypted initialization vector
+     * - [32..(n-41)] is the encrypted plaintext
+     * - [(n-40)..(n-1)] is the SHA1 hash
+     * 
+     * Therefore, ciphertext must have an even number of chars, be at least
+     * 104 chars long, and encrypted plaintext length must be a multiple of 32,
+     * since the encryption block size is 16.
+     * 
+     * @param ciphertext    encrypted const char*
+     * @param size          size of ciphertext
+     * @return String       plaintext, empty string if failed
+     */
+    const String decrypt(const char* cipherText, size_t size);
+    
+    /**
+     * @brief Decrypt the provided data array ciphertext using the key set,
+     * and returns size of plaintext.
+     * 
+     * The key must be sucessfully set before trying to decrypt.
+     * 
+     * An empty size is returned in case of error. Possible statuses
+     * are BufferAllocationFailed, InvalidKey, InvalidCiphertextLength,
+     * InvalidHexString, HashMismatch, CiphertextTooLong, or Ok
+     * if decrypted correctly.
+     * 
+     * Ciphertext is interpreted as an hex string composed of the following
+     * parts, where 'n' is its length:
+     * - [0..31]  is the encrypted initialization vector
+     * - [32..(n-41)] is the encrypted plaintext
+     * - [(n-40)..(n-1)] is the SHA1 hash
+     * 
+     * Therefore, data array must have an even number of chars, be at least
+     * 104 chars long, and encrypted plaintext length must be a multiple of 32,
+     * since the encryption block size is 16.
+     * 
+     * @param data          buffer (array) of data ciphertext and if decrypt plaintext successfully
+     * @param cipherSize    size of cipher
+     * @return size_t       return size of plaintext in data array, return 0 if failed
+     */
+    const size_t decryptArray(char* data, size_t cipherSize);
 
     /**
      * @brief Get last status, set by encrypt or decrypt methods.
@@ -144,11 +256,13 @@ public:
      * or HexStringTooLong (input larger than capacity).
      * 
      * @param  input        length must be even and must fit into capacity
+     * @param  inputStart   input start index
+     * @param  inputStop    input stop index
      * @param  output       output byte array
      * @param  capacity     output capacity
      * @return              number of bytes converted, 0 in case of error
      */
-    uint16_t hexStringToArray(String input, uint8_t *output, uint16_t capacity);
+    uint16_t hexStringToArray(char *input, uint16_t inputStart, const uint16_t inputStop, uint8_t *output, const uint16_t capacity);
 
     /**
      * @brief Converts a byte array to an hex string.
@@ -157,7 +271,10 @@ public:
      * @param  len      byte array length
      * @return      hex string
      */
-    String arrayToHexString(uint8_t *input, uint16_t len);
+    const String arrayToHexString(uint8_t *input, uint16_t len);
+    const size_t arrayToHexCharArray(uint8_t *input, size_t len, char *output);
+    const size_t arrayToHexCharArray(uint8_t *input, size_t inputLen, char *output, size_t outputStart);
+
 
 private:
     String key_ = "";
