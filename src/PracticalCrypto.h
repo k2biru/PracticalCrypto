@@ -183,7 +183,7 @@ public:
      * @param ciphertext    encrypted String
      * @return String       plaintext, empty string if failed
      */
-    const String decrypt(String cipherText);
+    const String decrypt(String &cipherText);
 
      /**
      * @brief Decrypt the provided ciphertext array using the key set,
