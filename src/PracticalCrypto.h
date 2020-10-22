@@ -249,7 +249,7 @@ public:
     }
 
     /**
-     * @brief Converts an hex string to a byte array. In case of error,
+     * @brief Converts an hex char array to a byte array. In case of error,
      * 0 is returned and lastStatus() will indicate what happened.
      * 
      * Possible errors are InvalidHexString (invalid chars detected)
@@ -262,7 +262,7 @@ public:
      * @param  capacity     output capacity
      * @return              number of bytes converted, 0 in case of error
      */
-    uint16_t hexStringToArray(char *input, uint16_t inputStart, const uint16_t inputStop, uint8_t *output, const uint16_t capacity);
+    uint16_t hexCharArrayToArray(char *input, uint16_t inputStart, const uint16_t inputStop, uint8_t *output, const uint16_t capacity);
 
     /**
      * @brief Converts a byte array to an hex string.
@@ -272,7 +272,16 @@ public:
      * @return      hex string
      */
     const String arrayToHexString(uint8_t *input, uint16_t len);
-    const size_t arrayToHexCharArray(uint8_t *input, size_t len, char *output);
+
+    /**
+     * @brief Converts a byte array to an hex char array.
+     * 
+     * @param  input        byte array to be converted
+     * @param  inputLen     byte array length
+     * @param  output       pointer to output array
+     * @param  outputStart  output array start index
+     * @return              size of output
+     */
     const size_t arrayToHexCharArray(uint8_t *input, size_t inputLen, char *output, size_t outputStart);
 
 

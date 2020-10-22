@@ -8,12 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 * Encryption char array
 * Decryption char array
-* Add `arrayToHexCharArray` and `arrayToHexCharArray`
+* Add `arrayToHexCharArray` and `hexCharArrayToArray`
+* Add `calculateBuffer` to calculate size of buffer to be use for any given size
 
 ### Changed
 * Change flow of `encrypt` and `decrypt` from full String to char array
 * Using `arrayToHexCharArray` to `encrypt` instead `arrayToHexString`
-* Using `arrayToHexCharArray` to `decrypt` instead `hexStringToArray`
+* Using `hexCharArrayToArray` to `decrypt` instead `hexStringToArray`
 
 
 ### Removed

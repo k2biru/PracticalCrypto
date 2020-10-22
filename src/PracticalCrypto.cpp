@@ -214,7 +214,7 @@ const size_t PracticalCrypto::encryptArray(const char *plainText,size_t plainSiz
  * @param ciphertext    String to be decrypted
  * @return String       plaintext data
  */
-const String PracticalCrypto::decrypt(String cipherText)
+const String PracticalCrypto::decrypt(String &cipherText)
 {
     return decrypt(cipherText.c_str(),cipherText.length());
 }
@@ -301,19 +301,19 @@ const size_t PracticalCrypto::decryptArray(char* data, size_t cipherSize)
     uint8_t ivCipher[BLK_SZ] = {0};
     uint8_t hashCipher[br_sha1_SIZE] = {0};
 
-    converted = hexStringToArray((char*)data,0,ivEnd, ivCipher, BLK_SZ);
+    converted = hexCharArrayToArray((char*)data,0,ivEnd, ivCipher, BLK_SZ);
     if (converted == 0) {
         // last status already set
         return decSize;
     }
 
-    converted = hexStringToArray((char*)data,ivEnd, hashStart, dataBuffer_, dataLength);
+    converted = hexCharArrayToArray((char*)data,ivEnd, hashStart, dataBuffer_, dataLength);
     if (converted == 0) {
         // last status already set
         return decSize;
     }
 
-    converted = hexStringToArray((char*)data,hashStart,cipherSize,hashCipher,br_sha1_SIZE);
+    converted = hexCharArrayToArray((char*)data,hashStart,cipherSize,hashCipher,br_sha1_SIZE);
     if (converted == 0) {
         // last status already set
         return decSize;
@@ -403,7 +403,7 @@ inline int8_t hexToByte(char hex)
 }
 
 
-uint16_t PracticalCrypto::hexStringToArray(
+uint16_t PracticalCrypto::hexCharArrayToArray(
     char * input,
     uint16_t inputStart,
     const uint16_t inputStop,
@@ -470,28 +470,6 @@ const String PracticalCrypto::arrayToHexString(uint8_t *input, uint16_t len)
     return ret;
 }
 
-/////
-
-const size_t PracticalCrypto::arrayToHexCharArray(uint8_t *input, size_t len, char *output)
-{
-    size_t size = 0;
-    for (uint16_t i = 0; i < len; ++i) {
-        size = i*2;
-        char ch = (input[i] >> 4) & 0x0F;
-        if (ch < 10) ch += '0';
-        else ch += 'A' - 10;
-        output[size] = ch;
-
-        size++;
-
-        ch = input[i] & 0x0F;
-        if (ch < 10) ch += '0';
-        else ch += 'A' - 10;
-        output[size] = ch;
-    }
-    return size;
-}
-
 const size_t PracticalCrypto::arrayToHexCharArray(uint8_t *input, size_t inputLen, char *output, size_t outputStart)
 {
     size_t size = 0;
@@ -509,8 +487,6 @@ const size_t PracticalCrypto::arrayToHexCharArray(uint8_t *input, size_t inputLe
         if (ch < 10) ch += '0';
         else ch += 'A' - 10;
         output[size] = ch;
-
-        // Serial.printf("%i in %2x -> %c%c\n",i,input[i],output[size-1],output[size]);
     }
     size++;
     output[size] = 0;
