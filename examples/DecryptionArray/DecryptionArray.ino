@@ -1,9 +1,10 @@
 /**
  * @file Decryption.ino
  * @author Gutierrez PS (https://github.com/gutierrezps)
+*         Fahrizal HU (https://github.com/k2biru)
  * @brief Decryption example using PracticalCrypto library
  * @version 0.1.0
- * @date 2020-05-25
+ * @date 2021-02-25
  * 
  */
 
@@ -33,7 +34,7 @@ void setup() {
     char *buffer = reinterpret_cast<char*>(malloc(cipherLen+1));
     memcpy(buffer, cipherText, cipherLen);
     buffer[cipherLen] = '\0';
-    size_t plainLen = _aesCrypto.decryptArray(buffer,cipherText);
+    size_t plainLen = crypto.decryptArray(buffer,cipherText);
 
     if (plainLen) {
         Serial.printf("Plaintext: '%s'\n", buffer);
