@@ -1,9 +1,10 @@
 /**
  * @file Encryption.ino
  * @author Gutierrez PS (https://github.com/gutierrezps)
+ *         Fahrizal HU (https://github.com/k2biru)
  * @brief Encryption example using PracticalCrypto library
  * @version 0.1.0
- * @date 2020-05-25
+ * @date 2021-02-25
  * 
  */
 
@@ -40,7 +41,7 @@ void setup()
     memcpy(buffer, plainText, inputLen);
     buffer[cipherLen] = 0;
 
-    cipherLen = _aesCrypto.encryptArray(buffer, cipherLen,buffer);
+    cipherLen = crypto.encryptArray(buffer, cipherLen,buffer);
 
     if (cipherLen == 0) {
         Serial.printf("Encryption failed (status %d)\n", crypto.lastStatus());
