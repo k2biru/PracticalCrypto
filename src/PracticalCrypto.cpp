@@ -1,7 +1,7 @@
 /**
  * @file PracticalCrypto.cpp
  * @author Gutierrez PS (https://github.com/gutierrezps)
- *         Fahhrizal HU (https://github.com/k2biru)
+ *         Fahrizal HU (https://github.com/k2biru)
  * @brief Library for easy encryption and decryption of Strings in ESP8266 Arduino core.
  * @version 0.1.1
  * @date 2020-10-20
